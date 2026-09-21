@@ -23,9 +23,8 @@ variable "key_admin_role_arn" {
 }
 
 variable "deployer_role_arn" {
-  description = "Role Terraform runs as."
+  description = "Role the e2e workflow assumes (BROKER_E2E_AWS_ROLE_ARN), kept as a second key administrator."
   type        = string
-  default     = "arn:aws:iam::911453050078:role/cicd-iac"
 }
 
 variable "signer_role_name" {

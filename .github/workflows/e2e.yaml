@@ -24,7 +24,9 @@ env:
   TF_VAR_name: github-token-broker-e2e
   TF_VAR_github_app_id: ${{ vars.BROKER_E2E_APP_ID }}
   TF_VAR_existing_kms_key_arn: ${{ vars.BROKER_E2E_KMS_KEY_ARN }}
-  TF_VAR_key_admin_role_arn: arn:aws:iam::911453050078:role/cicd-iac
+  TF_VAR_key_admin_role_arn: ${{ vars.BROKER_E2E_AWS_ROLE_ARN }}
+  E2E_AWS_ROLE_ARN: ${{ vars.BROKER_E2E_AWS_ROLE_ARN }}
+  E2E_STATE_BUCKET: ${{ vars.BROKER_E2E_STATE_BUCKET }}
   TF_VAR_image_tag: e2e-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
@@ -37,8 +39,8 @@ jobs:
       - name: Check prerequisites
         working-directory: .
         run: |
-          if [[ -z $TF_VAR_github_app_id || -z $TF_VAR_existing_kms_key_arn ]]; then
-            echo "::error::Set the BROKER_E2E_APP_ID and BROKER_E2E_KMS_KEY_ARN repository variables; see 'End-to-end test' in the README."
+          if [[ -z $TF_VAR_github_app_id || -z $TF_VAR_existing_kms_key_arn || -z $E2E_AWS_ROLE_ARN || -z $E2E_STATE_BUCKET ]]; then
+            echo "::error::Set the BROKER_E2E_APP_ID, BROKER_E2E_KMS_KEY_ARN, BROKER_E2E_AWS_ROLE_ARN and BROKER_E2E_STATE_BUCKET repository variables; see 'End-to-end test' in the README."
             exit 1
           fi
 
@@ -46,7 +48,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: arn:aws:iam::911453050078:role/cicd-iac
+          role-to-assume: ${{ env.E2E_AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
@@ -58,13 +60,12 @@ jobs:
           cat > backend_override.tf <<'HCL'
           terraform {
             backend "s3" {
-              bucket = "tf-state-911453050078"
               key    = "terraform-aws-github-token-broker/e2e.tfstate"
               region = "eu-central-1"
             }
           }
           HCL
-          terraform init -input=false
+          terraform init -input=false -backend-config="bucket=$E2E_STATE_BUCKET"
 
       - name: Create ECR repositories
         run: terraform apply -input=false -auto-approve -target=aws_ecr_repository.this

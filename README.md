@@ -79,13 +79,16 @@ terraform-docs .
 
 ### End-to-end test
 
-`e2e.yaml` deploys `examples/complete` to the DND-IT sandbox account (911453050078, role `cicd-iac`), exchanges the workflow's own OIDC token using the trust policy in [`.github/chainguard/e2e.sts.yaml`](.github/chainguard/e2e.sts.yaml), asserts that the returned token can read this repository and cannot read another, and destroys everything.
+`e2e.yaml` deploys `examples/complete` to a test AWS account, exchanges the workflow's own OIDC token using the trust policy in [`.github/chainguard/e2e.sts.yaml`](.github/chainguard/e2e.sts.yaml), asserts that the returned token can read this repository and cannot read another, and destroys everything.
 
 A fresh KMS key has no key material, and the PEM must never reach CI, so the run signs with a long-lived key through `existing_kms_key_arn`. One-time setup:
 
 1. Create a test GitHub App owned by DND-IT with repository permissions Contents: read-only and Metadata: read-only, webhook inactive, installable on this account only. octo-sts needs `contents: read` to load the trust policy; an App can never mint a token wider than its own permissions, so this caps what the test key can do. Install it on this repository only and generate a private key.
-2. Apply [`test/fixture`](test/fixture) in the sandbox account and import the key with `scripts/import-key-material.sh`.
-3. Set the repository variables `BROKER_E2E_APP_ID` and `BROKER_E2E_KMS_KEY_ARN`.
+2. In the test account, pick the role GitHub Actions will assume. It needs a trust policy for this repository's OIDC tokens and enough rights to create IAM roles, Lambda, API Gateway, ECR, SNS and Secrets Manager resources, and it needs an S3 bucket for the e2e state.
+3. Apply [`test/fixture`](test/fixture) in that account with `key_admin_role_arn` set to your own role's full ARN (for an SSO role, including its `aws-reserved/...` path, from `aws iam get-role`) and `deployer_role_arn` set to the CI role, then import the key with `scripts/import-key-material.sh`.
+4. Set the repository variables `BROKER_E2E_APP_ID`, `BROKER_E2E_KMS_KEY_ARN`, `BROKER_E2E_AWS_ROLE_ARN` and `BROKER_E2E_STATE_BUCKET`.
+
+Moving the test to another account is steps 2 to 4 again; nothing in the code names an account.
 
 ### The e2e trust policy
 
