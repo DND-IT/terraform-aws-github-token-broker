@@ -6,8 +6,6 @@ on:
       - "**/*.tf"
       - "image/**"
       - ".github/workflows/e2e.yaml"
-    branches-ignore:
-      - renovate/*
   workflow_dispatch:
 
 permissions:
@@ -31,6 +29,7 @@ env:
 
 jobs:
   e2e:
+    if: ${{ !startsWith(github.head_ref, 'renovate/') }}
     runs-on: ubuntu-latest
     defaults:
       run:
