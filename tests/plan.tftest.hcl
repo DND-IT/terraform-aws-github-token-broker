@@ -103,6 +103,39 @@ run "existing_key" {
   }
 }
 
+run "ecr_repositories" {
+  command = plan
+
+  variables {
+    exchange_image_uri      = null
+    create_ecr_repositories = true
+    image_tag               = "1.2.3"
+    enable_webhook          = true
+    webhook_secret_arn      = "arn:aws:secretsmanager:eu-central-1:111111111111:secret:webhook"
+  }
+
+  assert {
+    condition     = toset(keys(aws_ecr_repository.this)) == toset(["exchange", "webhook"])
+    error_message = "expected one repository per function"
+  }
+
+  assert {
+    condition     = alltrue([for r in aws_ecr_repository.this : r.image_tag_mutability == "IMMUTABLE"])
+    error_message = "repositories must have immutable tags"
+  }
+}
+
+run "ecr_repositories_exclusive_with_image_uri" {
+  command = plan
+
+  variables {
+    create_ecr_repositories = true
+    image_tag               = "1.2.3"
+  }
+
+  expect_failures = [var.exchange_image_uri]
+}
+
 run "webhook_requires_inputs" {
   command = plan
 

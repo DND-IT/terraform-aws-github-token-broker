@@ -38,6 +38,11 @@ output "webhook_role_arn" {
   value       = one(aws_iam_role.webhook[*].arn)
 }
 
+output "ecr_repository_urls" {
+  description = "URL per function of the ECR repositories created by create_ecr_repositories."
+  value       = { for k, r in aws_ecr_repository.this : k => r.repository_url }
+}
+
 output "api_id" {
   description = "ID of the API Gateway HTTP API."
   value       = aws_apigatewayv2_api.this.id

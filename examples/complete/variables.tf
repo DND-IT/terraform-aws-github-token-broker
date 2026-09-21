@@ -15,7 +15,7 @@ variable "key_admin_role_arn" {
 }
 
 variable "image_tag" {
-  description = "Tag of the images pushed to the ECR repositories this example creates."
+  description = "Tag of the images pushed to the ECR repositories the module creates."
   type        = string
   default     = "0.10.0"
 }

@@ -9,16 +9,6 @@ locals {
   }
 }
 
-resource "aws_ecr_repository" "this" {
-  for_each = toset(["exchange", "webhook"])
-
-  name                 = "${var.name}-${each.key}"
-  image_tag_mutability = "IMMUTABLE"
-  force_delete         = true
-
-  tags = local.tags
-}
-
 resource "aws_sns_topic" "alarms" {
   name = "${var.name}-alarms"
 
@@ -40,10 +30,11 @@ module "broker" {
   name          = var.name
   github_app_id = var.github_app_id
 
-  exchange_image_uri = "${aws_ecr_repository.this["exchange"].repository_url}:${var.image_tag}"
+  create_ecr_repositories = true
+  image_tag               = var.image_tag
+  ecr_force_delete        = true
 
   enable_webhook     = true
-  webhook_image_uri  = "${aws_ecr_repository.this["webhook"].repository_url}:${var.image_tag}"
   webhook_secret_arn = aws_secretsmanager_secret.webhook.arn
 
   webhook_organization_filter = ["DND-IT"]

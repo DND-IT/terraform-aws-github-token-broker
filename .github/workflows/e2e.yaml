@@ -67,7 +67,7 @@ jobs:
           terraform init -input=false -backend-config="bucket=$E2E_STATE_BUCKET"
 
       - name: Create ECR repositories
-        run: terraform apply -input=false -auto-approve -target=aws_ecr_repository.this
+        run: terraform apply -input=false -auto-approve -target=module.broker.aws_ecr_repository.this
 
       - id: ecr
         uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
