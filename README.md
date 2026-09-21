@@ -1,4 +1,4 @@
-# terraform-aws-github-app-broker
+# terraform-aws-github-token-broker
 
 Serverless GitHub App installation token broker: octo-sts on AWS Lambda, with the App private key held in KMS where nobody can read it.
 
@@ -42,11 +42,11 @@ octo-sts expects the OIDC token audience to equal `STS_DOMAIN` unless a trust po
 ## Usage
 
 ```hcl
-module "github_app_broker" {
-  source = "github.com/DND-IT/terraform-aws-github-app-broker?ref=vX.Y.Z"
+module "github_token_broker" {
+  source = "github.com/DND-IT/terraform-aws-github-token-broker?ref=vX.Y.Z"
 
   github_app_id      = 123456
-  exchange_image_uri = "<account>.dkr.ecr.eu-central-1.amazonaws.com/github-app-broker-exchange@sha256:..."
+  exchange_image_uri = "<account>.dkr.ecr.eu-central-1.amazonaws.com/github-token-broker-exchange@sha256:..."
   key_admin_role_arn = "arn:aws:iam::<account>:role/<break-glass>"
 
   domain_name     = "github-sts.example.com"
@@ -226,7 +226,7 @@ No modules.
 | <a name="input_lambda_memory_size"></a> [lambda\_memory\_size](#input\_lambda\_memory\_size) | Memory for the Lambda functions in MB. | `number` | `512` | no |
 | <a name="input_lambda_timeout"></a> [lambda\_timeout](#input\_lambda\_timeout) | Timeout for the Lambda functions in seconds. API Gateway caps integrations at 30. | `number` | `30` | no |
 | <a name="input_log_retention_in_days"></a> [log\_retention\_in\_days](#input\_log\_retention\_in\_days) | Retention for all CloudWatch log groups. | `number` | `90` | no |
-| <a name="input_name"></a> [name](#input\_name) | Name prefix for all resources. | `string` | `"github-app-broker"` | no |
+| <a name="input_name"></a> [name](#input\_name) | Name prefix for all resources. | `string` | `"github-token-broker"` | no |
 | <a name="input_route53_zone_id"></a> [route53\_zone\_id](#input\_route53\_zone\_id) | Hosted zone for the domain record and certificate validation. Required when domain\_name is set. | `string` | `null` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags applied to all resources. | `map(string)` | `{}` | no |
 | <a name="input_webhook_image_uri"></a> [webhook\_image\_uri](#input\_webhook\_image\_uri) | Private ECR image URI built from image/webhook/Dockerfile. Required when enable\_webhook is true. | `string` | `null` | no |

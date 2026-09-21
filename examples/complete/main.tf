@@ -4,7 +4,7 @@ provider "aws" {
 
 locals {
   tags = {
-    Repository = "DND-IT/terraform-aws-github-app-broker"
+    Repository = "DND-IT/terraform-aws-github-token-broker"
     Example    = "complete"
   }
 }

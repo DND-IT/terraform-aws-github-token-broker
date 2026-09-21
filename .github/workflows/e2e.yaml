@@ -21,7 +21,7 @@ concurrency:
 env:
   AWS_REGION: eu-central-1
   TF_IN_AUTOMATION: "true"
-  TF_VAR_name: github-app-broker-e2e
+  TF_VAR_name: github-token-broker-e2e
   TF_VAR_github_app_id: ${{ vars.BROKER_E2E_APP_ID }}
   TF_VAR_existing_kms_key_arn: ${{ vars.BROKER_E2E_KMS_KEY_ARN }}
   TF_VAR_key_admin_role_arn: arn:aws:iam::911453050078:role/cicd-iac
@@ -51,7 +51,7 @@ jobs:
           terraform {
             backend "s3" {
               bucket = "tf-state-911453050078"
-              key    = "terraform-aws-github-app-broker/e2e.tfstate"
+              key    = "terraform-aws-github-token-broker/e2e.tfstate"
               region = "eu-central-1"
             }
           }

@@ -31,7 +31,7 @@ variable "deployer_role_arn" {
 variable "signer_role_name" {
   description = "Name of the exchange role the e2e run creates."
   type        = string
-  default     = "github-app-broker-e2e-exchange"
+  default     = "github-token-broker-e2e-exchange"
 }
 
 data "aws_caller_identity" "current" {}
@@ -83,7 +83,7 @@ data "aws_iam_policy_document" "key" {
 }
 
 resource "aws_kms_external_key" "this" {
-  description = "github-app-broker e2e signing key"
+  description = "github-token-broker e2e signing key"
   key_spec    = "RSA_2048"
   key_usage   = "SIGN_VERIFY"
   policy      = data.aws_iam_policy_document.key.json
