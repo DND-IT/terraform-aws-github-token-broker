@@ -27,6 +27,8 @@ permissions:
   contents: write
 ```
 
+Repositories created after 15 July 2026, and any repository renamed or transferred since then, use GitHub's immutable subject format `repo:OWNER@OWNER-ID/REPO@REPO-ID:...`, so for them the subject above becomes `repo:DND-IT@19909911/my-service@<repository id>:ref:refs/heads/main`. `gh api repos/OWNER/REPO/actions/oidc/customization/sub` prints the prefix a repository uses as `sub_claim_prefix`.
+
 ### Lambda adaptation
 
 octo-sts ships two long-running HTTP servers, not Lambda handlers. This module runs the upstream images unchanged and adds the [AWS Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter) as an extension, which translates Lambda invocations into HTTP requests against the server on `PORT`. Each function is a three-line Dockerfile under [`image/`](image/).
@@ -96,7 +98,7 @@ Moving the test to another account is steps 2 to 4 again; nothing in the code na
 
 ```yaml
 issuer: https://token.actions.githubusercontent.com
-subject_pattern: repo:DND-IT/terraform-aws-github-token-broker:(pull_request|ref:refs/heads/main)
+subject_pattern: repo:DND-IT@19909911/terraform-aws-github-token-broker@1379168258:(pull_request|ref:refs/heads/main)
 claim_pattern:
   workflow_ref: DND-IT/terraform-aws-github-token-broker/\.github/workflows/e2e\.yaml@.*
 
@@ -168,7 +170,7 @@ KMS cannot rotate imported key material, so rotation is a new key:
 | Symptom | Cause | Fix |
 |---|---|---|
 | Exchange returns 401 with no octo-sts log line | JWT authorizer rejected the token: wrong audience or issuer | Request the OIDC token with the `domain` output as audience; check `authorizerError` in the API access log |
-| 403 `trust policy: subject ... did not match` | The policy in the target repository does not match the caller | Fix `.github/chainguard/<identity>.sts.yaml` on the default branch of the target repository |
+| 403 `trust policy: subject ... did not match` | The policy in the target repository does not match the caller, often because it uses the `repo:OWNER/REPO` subject while the repository has the immutable format | Fix `.github/chainguard/<identity>.sts.yaml` on the default branch of the target repository |
 | 404 / policy not found | No policy for that identity, or the App is not installed on the repository | Add the policy; install the App |
 | 5xx with `KMS sign` in the exchange log | Key is `PendingImport`, disabled, or the role lost `kms:Sign` | `aws kms describe-key`; run the import ceremony; check the key policy |
 | Function fails at init | Web adapter readiness check failed because octo-sts panicked on configuration | Read the function log; the panic names the environment variable |
