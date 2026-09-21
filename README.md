@@ -89,7 +89,7 @@ A fresh KMS key has no key material, and the PEM must never reach CI, so the run
 
 ## Deployment
 
-The module is consumed from platform Terraform, pinned to a release tag. `release.yaml` calls `DND-IT/github-workflows` `gh-release.yaml` on pushes to `main` and cuts a semantic version from the Conventional Commit history.
+The module is consumed from platform Terraform, pinned to a release tag. `release.yaml` runs the `DND-IT/tamci` release action on pushes to `main`, which cuts a `v`-prefixed semantic version and GitHub Release from the Conventional Commit history.
 
 Rolling out a broker:
 

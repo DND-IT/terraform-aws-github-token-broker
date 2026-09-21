@@ -2,19 +2,22 @@ name: release
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - "**/*.tf"
-      - "image/**"
-      - "scripts/**"
-  workflow_dispatch:
+    branches: [main]
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
-    uses: DND-IT/github-workflows/.github/workflows/gh-release.yaml@328e49b65b3dd969bcbe0dc14fbdf762aac51143 # v3.9.0
-    with:
-      update_version_aliases: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+      - uses: DND-IT/tamci/actions/release@ed90491bdd4f77b7423fdbb151ad107ca4b4c6e2 # v0.2.2
+        with:
+          tag-prefix: v
