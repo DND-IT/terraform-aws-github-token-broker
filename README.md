@@ -83,9 +83,43 @@ terraform-docs .
 
 A fresh KMS key has no key material, and the PEM must never reach CI, so the run signs with a long-lived key through `existing_kms_key_arn`. One-time setup:
 
-1. Create a test GitHub App (permission: metadata read), install it on this repository only, and generate a private key.
+1. Create a test GitHub App owned by DND-IT with repository permissions Contents: read-only and Metadata: read-only, webhook inactive, installable on this account only. octo-sts needs `contents: read` to load the trust policy; an App can never mint a token wider than its own permissions, so this caps what the test key can do. Install it on this repository only and generate a private key.
 2. Apply [`test/fixture`](test/fixture) in the sandbox account and import the key with `scripts/import-key-material.sh`.
 3. Set the repository variables `BROKER_E2E_APP_ID` and `BROKER_E2E_KMS_KEY_ARN`.
+
+### The e2e trust policy
+
+[`.github/chainguard/e2e.sts.yaml`](.github/chainguard/e2e.sts.yaml) is an ordinary octo-sts trust policy, and doubles as the reference for writing one in a consumer repository. The workflow asks the broker for `scope=DND-IT/terraform-aws-github-token-broker&identity=e2e`; octo-sts maps the identity to the file name (`.github/chainguard/e2e.sts.yaml`) and reads it from the default branch of the scope repository, using a token of its own that is limited to `contents: read` on that one repository.
+
+```yaml
+issuer: https://token.actions.githubusercontent.com
+subject_pattern: repo:DND-IT/terraform-aws-github-token-broker:(pull_request|ref:refs/heads/main)
+claim_pattern:
+  workflow_ref: DND-IT/terraform-aws-github-token-broker/\.github/workflows/e2e\.yaml@.*
+
+permissions:
+  metadata: read
+```
+
+Every condition must hold for the OIDC token the caller presents:
+
+| Field | Checks | Effect here |
+|---|---|---|
+| `issuer` | `iss` claim, exact match | Only tokens minted by GitHub Actions |
+| `subject_pattern` | `sub` claim, regular expression | Only this repository, and only `pull_request` runs or runs on `main`. A push to any other branch, a tag or a GitHub environment produces a different `sub` and is refused |
+| `claim_pattern.workflow_ref` | any other claim, regular expression per claim | Only `e2e.yaml`. Another workflow in this repository has a matching `sub` but cannot use this identity |
+| audience (not set) | `aud` claim | With no `audience` or `audience_pattern`, octo-sts requires `aud` to equal the broker domain (`STS_DOMAIN`), which is why the workflow requests its OIDC token with the `domain` output as audience. The JWT authorizer enforces the same value first |
+
+Patterns are anchored by octo-sts (`^(?:...)$`), so they match the whole claim; do not add `^` or `$`, and escape literal dots. `subject` and `issuer` have exact-match and `_pattern` forms; use exactly one of each.
+
+`permissions` is what the returned token can do, and nothing else shapes it: the token is an installation token for the scope repository only, carrying exactly these permissions, valid for one hour. A policy cannot grant more than the GitHub App itself holds; asking for more makes GitHub reject the token request. `metadata: read` is enough for the test's assertion (`GET /repos/<this repo>` succeeds, another DND-IT repository returns 404).
+
+Things that surprise people:
+
+- **The policy on `main` is the one in force.** A pull request that edits the policy is still judged by the old one, which is what stops a pull request from granting itself access. It also means a policy change cannot be tested before it is merged.
+- **Policies are cached** in memory for five minutes per function instance, including "not found" results. After merging a new or changed policy, an exchange can keep failing for that long.
+- **Pull requests from forks** get no OIDC token from GitHub, so they cannot exchange at all. DND-IT repositories are not forked, so this only matters if that changes.
+- **The `pull_request` subject covers every pull request in the repository**, whoever opened it. The `workflow_ref` claim pins the workflow file, but on `pull_request` runs that file comes from the pull request's merge commit, so a contributor with push access can edit it. Keep identities that are reachable from pull requests to read-only permissions, as this one is, and give write permissions only to identities restricted to `ref:refs/heads/main` or a protected environment.
 
 ## Deployment
 
