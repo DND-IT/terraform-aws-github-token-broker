@@ -1,0 +1,20 @@
+name: release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**/*.tf"
+      - "image/**"
+      - "scripts/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: DND-IT/github-workflows/.github/workflows/gh-release.yaml@328e49b65b3dd969bcbe0dc14fbdf762aac51143 # v3.9.0
+    with:
+      update_version_aliases: true

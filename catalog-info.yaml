@@ -1,0 +1,18 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: terraform-aws-github-app-broker
+  namespace: dnd-it
+  description: Serverless GitHub App installation token broker (octo-sts on Lambda, App key in KMS)
+  annotations:
+    github.com/project-slug: DND-IT/terraform-aws-github-app-broker
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - terraform
+    - module
+    - aws
+spec:
+  type: library
+  lifecycle: experimental
+  owner: group:default/dai
+  system: infrastructure

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "baseBranches": ["main"],
+  "extends": ["github>tx-pts-dai/renovate-config"],
+  "schedule": ["after 9am on Monday"],
+  "packageRules": [
+    {
+      "description": "Keep the exchange and webhook images on the same octo-sts release",
+      "matchPackageNames": ["ghcr.io/octo-sts/app", "ghcr.io/octo-sts/webhook"],
+      "groupName": "octo-sts"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Default image tag of the example follows the octo-sts release",
+      "managerFilePatterns": ["/^examples/complete/variables\\.tf$/"],
+      "matchStrings": ["default\\s+=\\s+\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "depNameTemplate": "ghcr.io/octo-sts/app",
+      "datasourceTemplate": "docker"
+    }
+  ]
+}
