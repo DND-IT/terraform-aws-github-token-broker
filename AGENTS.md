@@ -1,4 +1,4 @@
-# terraform-aws-github-app-broker
+# terraform-aws-github-token-broker
 
 Terraform module deploying octo-sts on Lambda with the GitHub App key in KMS. Read
 `README.md` and `docs/adr/0001-github-app-token-broker.md` first.

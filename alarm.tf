@@ -15,7 +15,7 @@ resource "aws_cloudwatch_log_metric_filter" "unexpected_signer" {
 
   metric_transformation {
     name      = "${var.name}-unexpected-signer"
-    namespace = "GitHubAppBroker"
+    namespace = "GitHubTokenBroker"
     value     = "1"
   }
 }
@@ -25,7 +25,7 @@ resource "aws_cloudwatch_metric_alarm" "unexpected_signer" {
 
   alarm_name          = "${var.name}-unexpected-signer"
   alarm_description   = "A principal other than the broker roles called kms:Sign on the ${var.name} GitHub App key."
-  namespace           = "GitHubAppBroker"
+  namespace           = "GitHubTokenBroker"
   metric_name         = "${var.name}-unexpected-signer"
   statistic           = "Sum"
   period              = 300

@@ -6,8 +6,6 @@ on:
       - "**/*.tf"
       - "image/**"
       - ".github/workflows/e2e.yaml"
-    branches-ignore:
-      - renovate/*
   workflow_dispatch:
 
 permissions:
@@ -21,24 +19,35 @@ concurrency:
 env:
   AWS_REGION: eu-central-1
   TF_IN_AUTOMATION: "true"
-  TF_VAR_name: github-app-broker-e2e
+  TF_VAR_name: github-token-broker-e2e
   TF_VAR_github_app_id: ${{ vars.BROKER_E2E_APP_ID }}
   TF_VAR_existing_kms_key_arn: ${{ vars.BROKER_E2E_KMS_KEY_ARN }}
-  TF_VAR_key_admin_role_arn: arn:aws:iam::911453050078:role/cicd-iac
+  TF_VAR_key_admin_role_arn: ${{ vars.BROKER_E2E_AWS_ROLE_ARN }}
+  E2E_AWS_ROLE_ARN: ${{ vars.BROKER_E2E_AWS_ROLE_ARN }}
+  E2E_STATE_BUCKET: ${{ vars.BROKER_E2E_STATE_BUCKET }}
   TF_VAR_image_tag: e2e-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   e2e:
+    if: ${{ !startsWith(github.head_ref, 'renovate/') }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: examples/complete
     steps:
+      - name: Check prerequisites
+        working-directory: .
+        run: |
+          if [[ -z $TF_VAR_github_app_id || -z $TF_VAR_existing_kms_key_arn || -z $E2E_AWS_ROLE_ARN || -z $E2E_STATE_BUCKET ]]; then
+            echo "::error::Set the BROKER_E2E_APP_ID, BROKER_E2E_KMS_KEY_ARN, BROKER_E2E_AWS_ROLE_ARN and BROKER_E2E_STATE_BUCKET repository variables; see 'End-to-end test' in the README."
+            exit 1
+          fi
+
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: arn:aws:iam::911453050078:role/cicd-iac
+          role-to-assume: ${{ env.E2E_AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
@@ -50,13 +59,12 @@ jobs:
           cat > backend_override.tf <<'HCL'
           terraform {
             backend "s3" {
-              bucket = "tf-state-911453050078"
-              key    = "terraform-aws-github-app-broker/e2e.tfstate"
+              key    = "terraform-aws-github-token-broker/e2e.tfstate"
               region = "eu-central-1"
             }
           }
           HCL
-          terraform init -input=false
+          terraform init -input=false -backend-config="bucket=$E2E_STATE_BUCKET"
 
       - name: Create ECR repositories
         run: terraform apply -input=false -auto-approve -target=aws_ecr_repository.this

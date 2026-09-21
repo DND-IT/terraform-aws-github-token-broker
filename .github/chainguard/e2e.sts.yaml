@@ -1,7 +1,7 @@
 issuer: https://token.actions.githubusercontent.com
-subject_pattern: repo:DND-IT/terraform-aws-github-app-broker:(pull_request|ref:refs/heads/main)
+subject_pattern: repo:DND-IT@19909911/terraform-aws-github-token-broker@1379168258:(pull_request|ref:refs/heads/main)
 claim_pattern:
-  workflow_ref: DND-IT/terraform-aws-github-app-broker/\.github/workflows/e2e\.yaml@.*
+  workflow_ref: DND-IT/terraform-aws-github-token-broker/\.github/workflows/e2e\.yaml@.*
 
 permissions:
   metadata: read

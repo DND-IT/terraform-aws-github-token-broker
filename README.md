@@ -1,4 +1,4 @@
-# terraform-aws-github-app-broker
+# terraform-aws-github-token-broker
 
 Serverless GitHub App installation token broker: octo-sts on AWS Lambda, with the App private key held in KMS where nobody can read it.
 
@@ -27,6 +27,8 @@ permissions:
   contents: write
 ```
 
+Repositories created after 15 July 2026, and any repository renamed or transferred since then, use GitHub's immutable subject format `repo:OWNER@OWNER-ID/REPO@REPO-ID:...`, so for them the subject above becomes `repo:DND-IT@19909911/my-service@<repository id>:ref:refs/heads/main`. `gh api repos/OWNER/REPO/actions/oidc/customization/sub` prints the prefix a repository uses as `sub_claim_prefix`.
+
 ### Lambda adaptation
 
 octo-sts ships two long-running HTTP servers, not Lambda handlers. This module runs the upstream images unchanged and adds the [AWS Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter) as an extension, which translates Lambda invocations into HTTP requests against the server on `PORT`. Each function is a three-line Dockerfile under [`image/`](image/).
@@ -42,11 +44,11 @@ octo-sts expects the OIDC token audience to equal `STS_DOMAIN` unless a trust po
 ## Usage
 
 ```hcl
-module "github_app_broker" {
-  source = "github.com/DND-IT/terraform-aws-github-app-broker?ref=vX.Y.Z"
+module "github_token_broker" {
+  source = "github.com/DND-IT/terraform-aws-github-token-broker?ref=vX.Y.Z"
 
   github_app_id      = 123456
-  exchange_image_uri = "<account>.dkr.ecr.eu-central-1.amazonaws.com/github-app-broker-exchange@sha256:..."
+  exchange_image_uri = "<account>.dkr.ecr.eu-central-1.amazonaws.com/github-token-broker-exchange@sha256:..."
   key_admin_role_arn = "arn:aws:iam::<account>:role/<break-glass>"
 
   domain_name     = "github-sts.example.com"
@@ -79,13 +81,50 @@ terraform-docs .
 
 ### End-to-end test
 
-`e2e.yaml` deploys `examples/complete` to the DND-IT sandbox account (911453050078, role `cicd-iac`), exchanges the workflow's own OIDC token using the trust policy in [`.github/chainguard/e2e.sts.yaml`](.github/chainguard/e2e.sts.yaml), asserts that the returned token can read this repository and cannot read another, and destroys everything.
+`e2e.yaml` deploys `examples/complete` to a test AWS account, exchanges the workflow's own OIDC token using the trust policy in [`.github/chainguard/e2e.sts.yaml`](.github/chainguard/e2e.sts.yaml), asserts that the returned token can read this repository and cannot read another, and destroys everything.
 
 A fresh KMS key has no key material, and the PEM must never reach CI, so the run signs with a long-lived key through `existing_kms_key_arn`. One-time setup:
 
-1. Create a test GitHub App (permission: metadata read), install it on this repository only, and generate a private key.
-2. Apply [`test/fixture`](test/fixture) in the sandbox account and import the key with `scripts/import-key-material.sh`.
-3. Set the repository variables `BROKER_E2E_APP_ID` and `BROKER_E2E_KMS_KEY_ARN`.
+1. Create a test GitHub App owned by DND-IT with repository permissions Contents: read-only and Metadata: read-only, webhook inactive, installable on this account only. octo-sts needs `contents: read` to load the trust policy; an App can never mint a token wider than its own permissions, so this caps what the test key can do. Install it on this repository only and generate a private key.
+2. In the test account, pick the role GitHub Actions will assume. It needs a trust policy for this repository's OIDC tokens and enough rights to create IAM roles, Lambda, API Gateway, ECR, SNS and Secrets Manager resources, and it needs an S3 bucket for the e2e state.
+3. Apply [`test/fixture`](test/fixture) in that account with `key_admin_role_arn` set to your own role's full ARN (for an SSO role, including its `aws-reserved/...` path, from `aws iam get-role`) and `deployer_role_arn` set to the CI role, then import the key with `scripts/import-key-material.sh`.
+4. Set the repository variables `BROKER_E2E_APP_ID`, `BROKER_E2E_KMS_KEY_ARN`, `BROKER_E2E_AWS_ROLE_ARN` and `BROKER_E2E_STATE_BUCKET`.
+
+Moving the test to another account is steps 2 to 4 again; nothing in the code names an account.
+
+### The e2e trust policy
+
+[`.github/chainguard/e2e.sts.yaml`](.github/chainguard/e2e.sts.yaml) is an ordinary octo-sts trust policy, and doubles as the reference for writing one in a consumer repository. The workflow asks the broker for `scope=DND-IT/terraform-aws-github-token-broker&identity=e2e`; octo-sts maps the identity to the file name (`.github/chainguard/e2e.sts.yaml`) and reads it from the default branch of the scope repository, using a token of its own that is limited to `contents: read` on that one repository.
+
+```yaml
+issuer: https://token.actions.githubusercontent.com
+subject_pattern: repo:DND-IT@19909911/terraform-aws-github-token-broker@1379168258:(pull_request|ref:refs/heads/main)
+claim_pattern:
+  workflow_ref: DND-IT/terraform-aws-github-token-broker/\.github/workflows/e2e\.yaml@.*
+
+permissions:
+  metadata: read
+```
+
+Every condition must hold for the OIDC token the caller presents:
+
+| Field | Checks | Effect here |
+|---|---|---|
+| `issuer` | `iss` claim, exact match | Only tokens minted by GitHub Actions |
+| `subject_pattern` | `sub` claim, regular expression | Only this repository, and only `pull_request` runs or runs on `main`. A push to any other branch, a tag or a GitHub environment produces a different `sub` and is refused |
+| `claim_pattern.workflow_ref` | any other claim, regular expression per claim | Only `e2e.yaml`. Another workflow in this repository has a matching `sub` but cannot use this identity |
+| audience (not set) | `aud` claim | With no `audience` or `audience_pattern`, octo-sts requires `aud` to equal the broker domain (`STS_DOMAIN`), which is why the workflow requests its OIDC token with the `domain` output as audience. The JWT authorizer enforces the same value first |
+
+Patterns are anchored by octo-sts (`^(?:...)$`), so they match the whole claim; do not add `^` or `$`, and escape literal dots. `subject` and `issuer` have exact-match and `_pattern` forms; use exactly one of each.
+
+`permissions` is what the returned token can do, and nothing else shapes it: the token is an installation token for the scope repository only, carrying exactly these permissions, valid for one hour. A policy cannot grant more than the GitHub App itself holds; asking for more makes GitHub reject the token request. `metadata: read` is enough for the test's assertion (`GET /repos/<this repo>` succeeds, another DND-IT repository returns 404).
+
+Things that surprise people:
+
+- **The policy on `main` is the one in force.** A pull request that edits the policy is still judged by the old one, which is what stops a pull request from granting itself access. It also means a policy change cannot be tested before it is merged.
+- **Policies are cached** in memory for five minutes per function instance, including "not found" results. After merging a new or changed policy, an exchange can keep failing for that long.
+- **Pull requests from forks** get no OIDC token from GitHub, so they cannot exchange at all. DND-IT repositories are not forked, so this only matters if that changes.
+- **The `pull_request` subject covers every pull request in the repository**, whoever opened it. The `workflow_ref` claim pins the workflow file, but on `pull_request` runs that file comes from the pull request's merge commit, so a contributor with push access can edit it. Keep identities that are reachable from pull requests to read-only permissions, as this one is, and give write permissions only to identities restricted to `ref:refs/heads/main` or a protected environment.
 
 ## Deployment
 
@@ -131,7 +170,7 @@ KMS cannot rotate imported key material, so rotation is a new key:
 | Symptom | Cause | Fix |
 |---|---|---|
 | Exchange returns 401 with no octo-sts log line | JWT authorizer rejected the token: wrong audience or issuer | Request the OIDC token with the `domain` output as audience; check `authorizerError` in the API access log |
-| 403 `trust policy: subject ... did not match` | The policy in the target repository does not match the caller | Fix `.github/chainguard/<identity>.sts.yaml` on the default branch of the target repository |
+| 403 `trust policy: subject ... did not match` | The policy in the target repository does not match the caller, often because it uses the `repo:OWNER/REPO` subject while the repository has the immutable format | Fix `.github/chainguard/<identity>.sts.yaml` on the default branch of the target repository |
 | 404 / policy not found | No policy for that identity, or the App is not installed on the repository | Add the policy; install the App |
 | 5xx with `KMS sign` in the exchange log | Key is `PendingImport`, disabled, or the role lost `kms:Sign` | `aws kms describe-key`; run the import ceremony; check the key policy |
 | Function fails at init | Web adapter readiness check failed because octo-sts panicked on configuration | Read the function log; the panic names the environment variable |
@@ -226,7 +265,7 @@ No modules.
 | <a name="input_lambda_memory_size"></a> [lambda\_memory\_size](#input\_lambda\_memory\_size) | Memory for the Lambda functions in MB. | `number` | `512` | no |
 | <a name="input_lambda_timeout"></a> [lambda\_timeout](#input\_lambda\_timeout) | Timeout for the Lambda functions in seconds. API Gateway caps integrations at 30. | `number` | `30` | no |
 | <a name="input_log_retention_in_days"></a> [log\_retention\_in\_days](#input\_log\_retention\_in\_days) | Retention for all CloudWatch log groups. | `number` | `90` | no |
-| <a name="input_name"></a> [name](#input\_name) | Name prefix for all resources. | `string` | `"github-app-broker"` | no |
+| <a name="input_name"></a> [name](#input\_name) | Name prefix for all resources. | `string` | `"github-token-broker"` | no |
 | <a name="input_route53_zone_id"></a> [route53\_zone\_id](#input\_route53\_zone\_id) | Hosted zone for the domain record and certificate validation. Required when domain\_name is set. | `string` | `null` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags applied to all resources. | `map(string)` | `{}` | no |
 | <a name="input_webhook_image_uri"></a> [webhook\_image\_uri](#input\_webhook\_image\_uri) | Private ECR image URI built from image/webhook/Dockerfile. Required when enable\_webhook is true. | `string` | `null` | no |

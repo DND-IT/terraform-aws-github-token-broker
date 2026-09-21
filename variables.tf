@@ -1,7 +1,7 @@
 variable "name" {
   description = "Name prefix for all resources."
   type        = string
-  default     = "github-app-broker"
+  default     = "github-token-broker"
 }
 
 variable "github_app_id" {
