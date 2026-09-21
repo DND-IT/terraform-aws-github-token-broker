@@ -10,7 +10,7 @@ output "domain" {
 
 output "ecr_repository_urls" {
   description = "Repositories the broker images are pushed to."
-  value       = { for k, r in aws_ecr_repository.this : k => r.repository_url }
+  value       = module.broker.ecr_repository_urls
 }
 
 output "kms_key_ids" {

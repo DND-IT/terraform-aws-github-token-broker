@@ -10,8 +10,37 @@ variable "github_app_id" {
 }
 
 variable "exchange_image_uri" {
-  description = "Private ECR image URI (ideally digest-pinned) built from image/exchange/Dockerfile."
+  description = "Private ECR image URI (ideally digest-pinned) built from image/exchange/Dockerfile. Required unless create_ecr_repositories is true."
   type        = string
+  default     = null
+
+  validation {
+    condition     = (var.exchange_image_uri != null) != var.create_ecr_repositories
+    error_message = "Set exactly one of exchange_image_uri and create_ecr_repositories."
+  }
+}
+
+variable "create_ecr_repositories" {
+  description = "Create the private ECR repositories the functions run from, and use image_tag in them instead of exchange_image_uri and webhook_image_uri. Lambda cannot use ECR pull through cache, so the images must be copied in, e.g. from GHCR, before the functions can be created."
+  type        = bool
+  default     = false
+}
+
+variable "image_tag" {
+  description = "Tag of the images in the repositories created by create_ecr_repositories."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = !var.create_ecr_repositories || var.image_tag != null
+    error_message = "image_tag is required when create_ecr_repositories is true."
+  }
+}
+
+variable "ecr_force_delete" {
+  description = "Delete the created ECR repositories even if they still contain images."
+  type        = bool
+  default     = false
 }
 
 variable "enable_webhook" {
@@ -21,13 +50,13 @@ variable "enable_webhook" {
 }
 
 variable "webhook_image_uri" {
-  description = "Private ECR image URI built from image/webhook/Dockerfile. Required when enable_webhook is true."
+  description = "Private ECR image URI built from image/webhook/Dockerfile. Required when enable_webhook is true, unless create_ecr_repositories is true."
   type        = string
   default     = null
 
   validation {
-    condition     = !var.enable_webhook || var.webhook_image_uri != null
-    error_message = "webhook_image_uri is required when enable_webhook is true."
+    condition     = !var.enable_webhook || var.create_ecr_repositories || var.webhook_image_uri != null
+    error_message = "webhook_image_uri is required when enable_webhook is true and create_ecr_repositories is false."
   }
 }
 

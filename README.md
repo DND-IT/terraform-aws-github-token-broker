@@ -128,11 +128,16 @@ Things that surprise people:
 
 ## Deployment
 
-The module is consumed from platform Terraform, pinned to a release tag. `release.yaml` runs the `DND-IT/tamci` release action on pushes to `main`, which cuts a `v`-prefixed semantic version and GitHub Release from the Conventional Commit history.
+The module is consumed from platform Terraform, pinned to a release tag. `release.yaml` runs the `DND-IT/tamci` release action on pushes to `main`, which cuts a `v`-prefixed semantic version and GitHub Release from the Conventional Commit history, then builds both images and pushes them to GHCR tagged with the version.
 
 Rolling out a broker:
 
-1. Build and push both images from `image/` to a private ECR repository in the target account (Lambda cannot pull from GHCR). Verify upstream first if you wish: `cosign verify ghcr.io/octo-sts/app@<digest> --certificate-oidc-issuer https://token.actions.githubusercontent.com --certificate-identity-regexp 'https://github.com/octo-sts/app/.*'`.
+1. Get both images into a private ECR repository in the target account. Lambda cannot pull from GHCR, nor through an [ECR pull through cache rule](https://docs.aws.amazon.com/AmazonECR/latest/userguide/pull-through-cache.html#pull-through-cache-considerations), so they must be copied in. Each release of this module publishes them to `ghcr.io/dnd-it/terraform-aws-github-token-broker/{exchange,webhook}:<version>`, without the `v`. With `create_ecr_repositories = true` the module creates the repositories; create them first, then copy the images:
+   ```sh
+   terraform apply -target='module.github_token_broker.aws_ecr_repository.this'
+   crane copy ghcr.io/dnd-it/terraform-aws-github-token-broker/exchange:<version> <account>.dkr.ecr.eu-central-1.amazonaws.com/github-token-broker-exchange:<version>
+   ```
+   Alternatively build `image/` yourself and pass `exchange_image_uri` and `webhook_image_uri`. Verify upstream first if you wish: `cosign verify ghcr.io/octo-sts/app@<digest> --certificate-oidc-issuer https://token.actions.githubusercontent.com --certificate-identity-regexp 'https://github.com/octo-sts/app/.*'`.
 2. Apply the module. The key is created in state `PendingImport`.
 3. Run the key import ceremony below.
 4. With `enable_webhook = true`: put the webhook secret into the Secrets Manager secret passed as `webhook_secret_arn`, and set the App's webhook URL to the `webhook_url` output.
@@ -224,6 +229,7 @@ No modules.
 | [aws_cloudwatch_log_group.webhook](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 | [aws_cloudwatch_log_metric_filter.unexpected_signer](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_metric_filter) | resource |
 | [aws_cloudwatch_metric_alarm.unexpected_signer](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_metric_alarm) | resource |
+| [aws_ecr_repository.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecr_repository) | resource |
 | [aws_iam_role.exchange](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role.webhook](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role_policy.exchange](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
@@ -251,12 +257,15 @@ No modules.
 | <a name="input_additional_jwt_audiences"></a> [additional\_jwt\_audiences](#input\_additional\_jwt\_audiences) | Audiences accepted by the JWT authorizer besides the broker domain. octo-sts expects the domain as audience unless a trust policy sets audience or audience\_pattern; list those values here. | `list(string)` | `[]` | no |
 | <a name="input_alarm_sns_topic_arn"></a> [alarm\_sns\_topic\_arn](#input\_alarm\_sns\_topic\_arn) | SNS topic notified when a principal other than the broker roles calls kms:Sign on the key. | `string` | `null` | no |
 | <a name="input_cloudtrail_log_group_name"></a> [cloudtrail\_log\_group\_name](#input\_cloudtrail\_log\_group\_name) | CloudWatch log group receiving the account's CloudTrail management events. When null the unexpected-signer alarm is not created. | `string` | `null` | no |
+| <a name="input_create_ecr_repositories"></a> [create\_ecr\_repositories](#input\_create\_ecr\_repositories) | Create the private ECR repositories the functions run from, and use image\_tag in them instead of exchange\_image\_uri and webhook\_image\_uri. Lambda cannot use ECR pull through cache, so the images must be copied in, e.g. from GHCR, before the functions can be created. | `bool` | `false` | no |
 | <a name="input_domain_name"></a> [domain\_name](#input\_domain\_name) | Custom domain for the API. When null the API Gateway endpoint is used. | `string` | `null` | no |
+| <a name="input_ecr_force_delete"></a> [ecr\_force\_delete](#input\_ecr\_force\_delete) | Delete the created ECR repositories even if they still contain images. | `bool` | `false` | no |
 | <a name="input_enable_jwt_authorizer"></a> [enable\_jwt\_authorizer](#input\_enable\_jwt\_authorizer) | Put an API Gateway JWT authorizer in front of the exchange route. It restricts callers to jwt\_issuer, which is stricter than octo-sts trust policies (they may name any issuer); disable it if non-GitHub-Actions issuers must exchange tokens. | `bool` | `true` | no |
 | <a name="input_enable_webhook"></a> [enable\_webhook](#input\_enable\_webhook) | Deploy the octo-sts webhook function, which validates trust policy changes in pull requests. | `bool` | `false` | no |
-| <a name="input_exchange_image_uri"></a> [exchange\_image\_uri](#input\_exchange\_image\_uri) | Private ECR image URI (ideally digest-pinned) built from image/exchange/Dockerfile. | `string` | n/a | yes |
+| <a name="input_exchange_image_uri"></a> [exchange\_image\_uri](#input\_exchange\_image\_uri) | Private ECR image URI (ideally digest-pinned) built from image/exchange/Dockerfile. Required unless create\_ecr\_repositories is true. | `string` | `null` | no |
 | <a name="input_existing_kms_key_arn"></a> [existing\_kms\_key\_arn](#input\_existing\_kms\_key\_arn) | Sign with this pre-existing key instead of creating keys. Its key policy must already allow kms:Sign for the broker role. Meant for ephemeral test deployments that cannot run the import ceremony. | `string` | `null` | no |
 | <a name="input_github_app_id"></a> [github\_app\_id](#input\_github\_app\_id) | ID of the GitHub App whose private key is imported into the KMS key. | `number` | n/a | yes |
+| <a name="input_image_tag"></a> [image\_tag](#input\_image\_tag) | Tag of the images in the repositories created by create\_ecr\_repositories. | `string` | `null` | no |
 | <a name="input_jwt_issuer"></a> [jwt\_issuer](#input\_jwt\_issuer) | Issuer accepted by the JWT authorizer. | `string` | `"https://token.actions.githubusercontent.com"` | no |
 | <a name="input_key_admin_role_arn"></a> [key\_admin\_role\_arn](#input\_key\_admin\_role\_arn) | Break-glass role allowed to administer the KMS keys and import key material. | `string` | n/a | yes |
 | <a name="input_key_deletion_window_in_days"></a> [key\_deletion\_window\_in\_days](#input\_key\_deletion\_window\_in\_days) | Waiting period before a removed KMS key is deleted. | `number` | `30` | no |
@@ -268,7 +277,7 @@ No modules.
 | <a name="input_name"></a> [name](#input\_name) | Name prefix for all resources. | `string` | `"github-token-broker"` | no |
 | <a name="input_route53_zone_id"></a> [route53\_zone\_id](#input\_route53\_zone\_id) | Hosted zone for the domain record and certificate validation. Required when domain\_name is set. | `string` | `null` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags applied to all resources. | `map(string)` | `{}` | no |
-| <a name="input_webhook_image_uri"></a> [webhook\_image\_uri](#input\_webhook\_image\_uri) | Private ECR image URI built from image/webhook/Dockerfile. Required when enable\_webhook is true. | `string` | `null` | no |
+| <a name="input_webhook_image_uri"></a> [webhook\_image\_uri](#input\_webhook\_image\_uri) | Private ECR image URI built from image/webhook/Dockerfile. Required when enable\_webhook is true, unless create\_ecr\_repositories is true. | `string` | `null` | no |
 | <a name="input_webhook_organization_filter"></a> [webhook\_organization\_filter](#input\_webhook\_organization\_filter) | Only process webhook events from these GitHub organizations. Empty processes all. | `list(string)` | `[]` | no |
 | <a name="input_webhook_secret_arn"></a> [webhook\_secret\_arn](#input\_webhook\_secret\_arn) | ARN of a caller-managed Secrets Manager secret holding the GitHub webhook secret. Required when enable\_webhook is true. octo-sts reads the webhook secret from Secrets Manager whenever a KMS key is configured. | `string` | `null` | no |
 
@@ -279,6 +288,7 @@ No modules.
 | <a name="output_api_id"></a> [api\_id](#output\_api\_id) | ID of the API Gateway HTTP API. |
 | <a name="output_broker_role_arn"></a> [broker\_role\_arn](#output\_broker\_role\_arn) | ARN of the exchange Lambda role. |
 | <a name="output_domain"></a> [domain](#output\_domain) | Audience consumers must request for their OIDC token. |
+| <a name="output_ecr_repository_urls"></a> [ecr\_repository\_urls](#output\_ecr\_repository\_urls) | URL per function of the ECR repositories created by create\_ecr\_repositories. |
 | <a name="output_exchange_url"></a> [exchange\_url](#output\_exchange\_url) | URL consumers call to exchange an OIDC token: <exchange\_url>?scope=<owner/repo>&identity=<name>. |
 | <a name="output_kms_alias_arn"></a> [kms\_alias\_arn](#output\_kms\_alias\_arn) | ARN of the alias the broker signs through. Null when existing\_kms\_key\_arn is set. |
 | <a name="output_kms_key_arn"></a> [kms\_key\_arn](#output\_kms\_key\_arn) | ARN of the active signing key. |

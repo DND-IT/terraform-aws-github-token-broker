@@ -9,7 +9,7 @@ resource "aws_lambda_function" "exchange" {
   function_name = "${var.name}-exchange"
   role          = aws_iam_role.exchange.arn
   package_type  = "Image"
-  image_uri     = var.exchange_image_uri
+  image_uri     = local.exchange_image_uri
   # Upstream publishes linux/amd64 images only.
   architectures = ["x86_64"]
   memory_size   = var.lambda_memory_size
@@ -54,7 +54,7 @@ resource "aws_lambda_function" "webhook" {
   function_name = "${var.name}-webhook"
   role          = aws_iam_role.webhook[0].arn
   package_type  = "Image"
-  image_uri     = var.webhook_image_uri
+  image_uri     = local.webhook_image_uri
   architectures = ["x86_64"]
   memory_size   = var.lambda_memory_size
   timeout       = var.lambda_timeout
