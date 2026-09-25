@@ -111,6 +111,12 @@ variable "key_deployer_role_arn" {
   default     = null
 }
 
+variable "key_reader_role_arns" {
+  description = "Roles granted only what Terraform needs to read the keys (kms:DescribeKey, kms:GetKeyPolicy, kms:ListResourceTags), e.g. a read-only role that runs plans on pull requests. The key policy has no account-root statement, so an IAM policy alone cannot grant this."
+  type        = list(string)
+  default     = []
+}
+
 variable "key_deletion_window_in_days" {
   description = "Waiting period before a removed KMS key is deleted."
   type        = number
