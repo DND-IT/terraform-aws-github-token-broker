@@ -52,6 +52,27 @@ run "defaults" {
     condition     = aws_apigatewayv2_route.exchange.authorization_type == "JWT"
     error_message = "exchange route must sit behind the JWT authorizer by default"
   }
+
+  assert {
+    condition     = !contains([for s in data.aws_iam_policy_document.key.statement : s.sid], "ReaderDescribe")
+    error_message = "no reader statement without key_reader_role_arns"
+  }
+}
+
+run "key_readers" {
+  command = plan
+
+  variables {
+    key_reader_role_arns = ["arn:aws:iam::111111111111:role/plan"]
+  }
+
+  assert {
+    condition = anytrue([
+      for s in data.aws_iam_policy_document.key.statement :
+      s.sid == "ReaderDescribe" && toset(s.actions) == toset(["kms:DescribeKey", "kms:GetKeyPolicy", "kms:ListResourceTags"])
+    ])
+    error_message = "key_reader_role_arns must get exactly the three read actions"
+  }
 }
 
 run "everything" {

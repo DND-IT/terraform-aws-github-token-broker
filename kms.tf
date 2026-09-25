@@ -80,4 +80,23 @@ data "aws_iam_policy_document" "key" {
       identifiers = [local.key_deployer_role_arn]
     }
   }
+
+  dynamic "statement" {
+    for_each = length(var.key_reader_role_arns) > 0 ? [1] : []
+
+    content {
+      sid = "ReaderDescribe"
+      actions = [
+        "kms:DescribeKey",
+        "kms:GetKeyPolicy",
+        "kms:ListResourceTags",
+      ]
+      resources = ["*"]
+
+      principals {
+        type        = "AWS"
+        identifiers = var.key_reader_role_arns
+      }
+    }
+  }
 }
