@@ -124,7 +124,7 @@ variable "key_deletion_window_in_days" {
 }
 
 variable "enable_jwt_authorizer" {
-  description = "Put an API Gateway JWT authorizer in front of the exchange route. It restricts callers to jwt_issuer, which is stricter than octo-sts trust policies (they may name any issuer); disable it if non-GitHub-Actions issuers must exchange tokens."
+  description = "Put the API Gateway JWT authorizer in front of the exchange route. It restricts callers to jwt_issuer, which is stricter than octo-sts trust policies (they may name any issuer); disable it if non-GitHub-Actions issuers must exchange tokens. The authorizer resource stays either way, detached from the route when off, so the switch is one route update in both directions."
   type        = bool
   default     = true
 }

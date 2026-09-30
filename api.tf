@@ -36,9 +36,12 @@ resource "aws_apigatewayv2_stage" "default" {
   tags = var.tags
 }
 
-resource "aws_apigatewayv2_authorizer" "jwt" {
-  count = var.enable_jwt_authorizer ? 1 : 0
+moved {
+  from = aws_apigatewayv2_authorizer.jwt[0]
+  to   = aws_apigatewayv2_authorizer.jwt
+}
 
+resource "aws_apigatewayv2_authorizer" "jwt" {
   api_id           = aws_apigatewayv2_api.this.id
   name             = "oidc"
   authorizer_type  = "JWT"
@@ -63,7 +66,7 @@ resource "aws_apigatewayv2_route" "exchange" {
   target    = "integrations/${aws_apigatewayv2_integration.exchange.id}"
 
   authorization_type = var.enable_jwt_authorizer ? "JWT" : "NONE"
-  authorizer_id      = var.enable_jwt_authorizer ? aws_apigatewayv2_authorizer.jwt[0].id : null
+  authorizer_id      = var.enable_jwt_authorizer ? aws_apigatewayv2_authorizer.jwt.id : null
 }
 
 resource "aws_apigatewayv2_integration" "webhook" {
