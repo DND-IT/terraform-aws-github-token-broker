@@ -35,11 +35,13 @@ octo-sts ships two long-running HTTP servers, not Lambda handlers. This module r
 
 The alternative, a Go `main` of our own importing octo-sts packages behind a Lambda HTTP adapter, would mean copying about 200 lines of upstream wiring (`cmd/app/main.go`: org router, quota store, gRPC gateway) and re-syncing them on every release. The image route needs no code, keeps upstream's cosign-signed binary intact, and both base images are digest-pinned so Renovate bumps them. Its cost: upstream publishes `linux/amd64` only, so the functions run on `x86_64`.
 
-octo-sts is configured through `KMS_PROVIDER=aws`, `KMS_KEYS=<alias ARN>`, `GITHUB_APP_IDS` and `STS_DOMAIN`; it signs with `RSASSA_PKCS1_V1_5_SHA_256` (RS256).
+octo-sts is configured through `KMS_PROVIDER=aws`, `KMS_KEYS=<alias ARN>`, `GITHUB_APP_IDS`, `STS_DOMAIN` and `ORG_POLICY_REPO`; it signs with `RSASSA_PKCS1_V1_5_SHA_256` (RS256).
 
 ### The JWT authorizer
 
 octo-sts expects the OIDC token audience to equal `STS_DOMAIN` unless a trust policy sets `audience` or `audience_pattern`. The authorizer accepts the same domain, plus anything in `additional_jwt_audiences` for policies that use their own audience. It admits a single issuer (`jwt_issuer`, GitHub Actions by default), which is stricter than octo-sts, whose policies may name any issuer. Set `enable_jwt_authorizer = false` if other issuers must exchange tokens; the authorizer stays as a resource, detached from the route, because API Gateway refuses to delete an authorizer a route still references and Terraform would try that before updating the route.
+
+With the authorizer off, octo-sts's organization allowlist is what limits the issuers: `.github/chainguard/trusted-token-issuers.yaml` in the organization's policy repository, enforced whenever the file exists. That repository is `org_policy_repo`, `.github` by default; it also holds the organization's org-scoped trust policies (exchanges with `scope` set to the organization alone). Pointing it at a private repository keeps the allowlist, and the issuer URLs in it, out of a public `.github`.
 
 ## Usage
 
@@ -276,6 +278,7 @@ No modules.
 | <a name="input_lambda_timeout"></a> [lambda\_timeout](#input\_lambda\_timeout) | Timeout for the Lambda functions in seconds. API Gateway caps integrations at 30. | `number` | `30` | no |
 | <a name="input_log_retention_in_days"></a> [log\_retention\_in\_days](#input\_log\_retention\_in\_days) | Retention for all CloudWatch log groups. | `number` | `90` | no |
 | <a name="input_name"></a> [name](#input\_name) | Name prefix for all resources. | `string` | `"github-token-broker"` | no |
+| <a name="input_org_policy_repo"></a> [org\_policy\_repo](#input\_org\_policy\_repo) | Repository, without owner, holding each organization's org-scoped trust policies and its trusted-token-issuers.yaml allowlist (ORG\_POLICY\_REPO). Applies to every organization the broker serves. | `string` | `".github"` | no |
 | <a name="input_route53_zone_id"></a> [route53\_zone\_id](#input\_route53\_zone\_id) | Hosted zone for the domain record and certificate validation. Required when domain\_name is set. | `string` | `null` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags applied to all resources. | `map(string)` | `{}` | no |
 | <a name="input_webhook_image_uri"></a> [webhook\_image\_uri](#input\_webhook\_image\_uri) | Private ECR image URI built from image/webhook/Dockerfile. Required when enable\_webhook is true, unless create\_ecr\_repositories is true. | `string` | `null` | no |

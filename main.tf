@@ -23,10 +23,11 @@ locals {
   domain = coalesce(var.domain_name, trimprefix(aws_apigatewayv2_api.this.api_endpoint, "https://"))
 
   common_environment = {
-    PORT           = "8080"
-    KMS_PROVIDER   = "aws"
-    KMS_KEYS       = local.signing_key_ref
-    GITHUB_APP_IDS = tostring(var.github_app_id)
-    METRICS        = "false"
+    PORT            = "8080"
+    KMS_PROVIDER    = "aws"
+    KMS_KEYS        = local.signing_key_ref
+    GITHUB_APP_IDS  = tostring(var.github_app_id)
+    METRICS         = "false"
+    ORG_POLICY_REPO = var.org_policy_repo
   }
 }

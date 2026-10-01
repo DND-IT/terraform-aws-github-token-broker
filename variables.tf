@@ -141,6 +141,17 @@ variable "additional_jwt_audiences" {
   default     = []
 }
 
+variable "org_policy_repo" {
+  description = "Repository, without owner, holding each organization's org-scoped trust policies and its trusted-token-issuers.yaml allowlist (ORG_POLICY_REPO). Applies to every organization the broker serves."
+  type        = string
+  default     = ".github"
+
+  validation {
+    condition     = var.org_policy_repo != ""
+    error_message = "org_policy_repo must not be empty."
+  }
+}
+
 variable "domain_name" {
   description = "Custom domain for the API. When null the API Gateway endpoint is used."
   type        = string

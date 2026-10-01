@@ -54,6 +54,11 @@ run "defaults" {
   }
 
   assert {
+    condition     = aws_lambda_function.exchange.environment[0].variables.ORG_POLICY_REPO == ".github"
+    error_message = "org policy repo must default to .github"
+  }
+
+  assert {
     condition     = !contains([for s in data.aws_iam_policy_document.key.statement : s.sid], "ReaderDescribe")
     error_message = "no reader statement without key_reader_role_arns"
   }
@@ -165,4 +170,27 @@ run "webhook_requires_inputs" {
   }
 
   expect_failures = [var.webhook_image_uri, var.webhook_secret_arn]
+}
+
+run "org_policy_repo" {
+  command = plan
+
+  variables {
+    org_policy_repo = ".github-private"
+  }
+
+  assert {
+    condition     = aws_lambda_function.exchange.environment[0].variables.ORG_POLICY_REPO == ".github-private"
+    error_message = "exchange must read org policies from org_policy_repo"
+  }
+}
+
+run "org_policy_repo_not_empty" {
+  command = plan
+
+  variables {
+    org_policy_repo = ""
+  }
+
+  expect_failures = [var.org_policy_repo]
 }
