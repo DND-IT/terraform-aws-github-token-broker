@@ -9,6 +9,31 @@ variable "github_app_id" {
   type        = number
 }
 
+variable "additional_github_apps" {
+  description = "More GitHub Apps the broker signs for, keyed by a short name. Each gets its own KMS keys, rotated through its key_versions and active_key_version like the primary App's, behind the alias alias/<name>-<key>. octo-sts serves a request with an App installed on the requested owner, so Apps installed on different organizations let one broker serve each organization with its own App."
+  type = map(object({
+    app_id             = number
+    key_versions       = optional(set(string), ["v1"])
+    active_key_version = optional(string, "v1")
+  }))
+  default = {}
+
+  validation {
+    condition     = alltrue([for name in keys(var.additional_github_apps) : can(regex("^[a-z0-9-]+$", name))])
+    error_message = "Keys of additional_github_apps may only contain lowercase letters, digits and hyphens."
+  }
+
+  validation {
+    condition     = alltrue([for app in values(var.additional_github_apps) : contains(app.key_versions, app.active_key_version)])
+    error_message = "Each App's active_key_version must be one of its key_versions."
+  }
+
+  validation {
+    condition     = length(distinct(concat([var.github_app_id], [for app in values(var.additional_github_apps) : app.app_id]))) == length(var.additional_github_apps) + 1
+    error_message = "App IDs must be unique across github_app_id and additional_github_apps."
+  }
+}
+
 variable "exchange_image_uri" {
   description = "Private ECR image URI (ideally digest-pinned) built from image/exchange/Dockerfile. Required unless create_ecr_repositories is true."
   type        = string

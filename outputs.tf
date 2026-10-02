@@ -23,6 +23,11 @@ output "kms_key_ids" {
   value       = { for v, k in aws_kms_external_key.this : v => k.id }
 }
 
+output "additional_kms_key_ids" {
+  description = "Key ID per additional App and key version, keyed <app>/<version>, as input for scripts/import-key-material.sh."
+  value       = { for k, key in aws_kms_external_key.additional : k => key.id }
+}
+
 output "kms_alias_arn" {
   description = "ARN of the alias the broker signs through. Null when existing_kms_key_arn is set."
   value       = one(aws_kms_alias.this[*].arn)
