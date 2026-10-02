@@ -194,3 +194,81 @@ run "org_policy_repo_not_empty" {
 
   expect_failures = [var.org_policy_repo]
 }
+
+run "additional_apps" {
+  command = plan
+
+  variables {
+    additional_github_apps = {
+      tx-pts-dai = { app_id = 3 }
+      admin      = { app_id = 2, key_versions = ["v1", "v2"], active_key_version = "v2" }
+    }
+    cloudtrail_log_group_name = "cloudtrail"
+  }
+
+  assert {
+    condition     = length(aws_kms_external_key.this) == 1 && toset(keys(aws_kms_external_key.additional)) == toset(["admin/v1", "admin/v2", "tx-pts-dai/v1"])
+    error_message = "expected the primary key plus one key per additional App and key version"
+  }
+
+  assert {
+    condition     = alltrue([for k in aws_kms_external_key.additional : k.key_spec == "RSA_2048" && k.key_usage == "SIGN_VERIFY" && k.key_material_base64 == null])
+    error_message = "additional keys must be RSA_2048 SIGN_VERIFY with no key material in Terraform"
+  }
+
+  assert {
+    condition     = aws_kms_alias.additional["admin"].name == "alias/github-token-broker-admin" && aws_kms_alias.additional["tx-pts-dai"].name == "alias/github-token-broker-tx-pts-dai"
+    error_message = "each additional App needs its own alias"
+  }
+
+  assert {
+    condition     = aws_lambda_function.exchange.environment[0].variables.GITHUB_APP_IDS == "1,2,3"
+    error_message = "GITHUB_APP_IDS must list the primary App first, then the additional Apps by name"
+  }
+
+  assert {
+    condition     = length(local.signing_key_refs) == 3
+    error_message = "KMS_KEYS must have one entry per App ID"
+  }
+
+  assert {
+    condition     = length(aws_cloudwatch_log_metric_filter.unexpected_signer) == 4
+    error_message = "every key, additional ones included, needs an unexpected-signer filter"
+  }
+}
+
+run "additional_apps_active_key_version" {
+  command = plan
+
+  variables {
+    additional_github_apps = {
+      tx-pts-dai = { app_id = 2, active_key_version = "v2" }
+    }
+  }
+
+  expect_failures = [var.additional_github_apps]
+}
+
+run "additional_apps_unique_ids" {
+  command = plan
+
+  variables {
+    additional_github_apps = {
+      tx-pts-dai = { app_id = 1 }
+    }
+  }
+
+  expect_failures = [var.additional_github_apps]
+}
+
+run "additional_apps_names" {
+  command = plan
+
+  variables {
+    additional_github_apps = {
+      "TX/PTS" = { app_id = 2 }
+    }
+  }
+
+  expect_failures = [var.additional_github_apps]
+}

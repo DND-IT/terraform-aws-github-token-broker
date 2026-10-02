@@ -168,6 +168,20 @@ KMS cannot rotate imported key material, so rotation is a new key:
 4. Confirm an exchange succeeds, then delete the old private key in the GitHub App settings.
 5. Set `key_versions = ["v2"]`, apply. The old KMS key is scheduled for deletion.
 
+### Several GitHub Apps and organizations
+
+One broker can sign for several GitHub Apps, for example one per organization. `github_app_id` stays the primary App; list the others in `additional_github_apps`:
+
+```hcl
+github_app_id = 123456 # installed on DND-IT
+
+additional_github_apps = {
+  tx-pts-dai = { app_id = 234567 } # installed on tx-pts-dai
+}
+```
+
+Each additional App gets its own KMS keys and alias (`alias/<name>-<key>`), and its keys appear in the `additional_kms_key_ids` output, keyed `<key>/<version>`, for the import ceremony. Rotate one with its own `key_versions` and `active_key_version`, as above. The broker passes every App to octo-sts as `GITHUB_APP_IDS` and `KMS_KEYS`, a single pool in which each exchange is served by an App installed on the requested owner. With each App installed on one organization only, every organization is served by its own App. An App installed on several organizations can serve any of them; nothing fails closed per organization, which only octo-sts's `APP_CONFIG_FILE` would give, and that needs a config file the Lambda images cannot carry today.
+
 ## Ownership
 
 `group:default/dai` (see [`catalog-info.yaml`](catalog-info.yaml)).
@@ -236,7 +250,9 @@ No modules.
 | [aws_iam_role.webhook](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role_policy.exchange](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_iam_role_policy.webhook](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
+| [aws_kms_alias.additional](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_alias) | resource |
 | [aws_kms_alias.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_alias) | resource |
+| [aws_kms_external_key.additional](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_external_key) | resource |
 | [aws_kms_external_key.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_external_key) | resource |
 | [aws_lambda_function.exchange](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function) | resource |
 | [aws_lambda_function.webhook](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function) | resource |
@@ -256,6 +272,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_active_key_version"></a> [active\_key\_version](#input\_active\_key\_version) | Entry of key\_versions the alias points at. The broker signs through the alias. | `string` | `"v1"` | no |
+| <a name="input_additional_github_apps"></a> [additional\_github\_apps](#input\_additional\_github\_apps) | More GitHub Apps the broker signs for, keyed by a short name. Each gets its own KMS keys, rotated through its key\_versions and active\_key\_version like the primary App's, behind the alias alias/<name>-<key>. octo-sts serves a request with an App installed on the requested owner, so Apps installed on different organizations let one broker serve each organization with its own App. | <pre>map(object({<br/>    app_id             = number<br/>    key_versions       = optional(set(string), ["v1"])<br/>    active_key_version = optional(string, "v1")<br/>  }))</pre> | `{}` | no |
 | <a name="input_additional_jwt_audiences"></a> [additional\_jwt\_audiences](#input\_additional\_jwt\_audiences) | Audiences accepted by the JWT authorizer besides the broker domain. octo-sts expects the domain as audience unless a trust policy sets audience or audience\_pattern; list those values here. | `list(string)` | `[]` | no |
 | <a name="input_alarm_sns_topic_arn"></a> [alarm\_sns\_topic\_arn](#input\_alarm\_sns\_topic\_arn) | SNS topic notified when a principal other than the broker roles calls kms:Sign on the key. | `string` | `null` | no |
 | <a name="input_cloudtrail_log_group_name"></a> [cloudtrail\_log\_group\_name](#input\_cloudtrail\_log\_group\_name) | CloudWatch log group receiving the account's CloudTrail management events. When null the unexpected-signer alarm is not created. | `string` | `null` | no |
@@ -289,6 +306,7 @@ No modules.
 
 | Name | Description |
 | ---- | ----------- |
+| <a name="output_additional_kms_key_ids"></a> [additional\_kms\_key\_ids](#output\_additional\_kms\_key\_ids) | Key ID per additional App and key version, keyed <app>/<version>, as input for scripts/import-key-material.sh. |
 | <a name="output_api_id"></a> [api\_id](#output\_api\_id) | ID of the API Gateway HTTP API. |
 | <a name="output_broker_role_arn"></a> [broker\_role\_arn](#output\_broker\_role\_arn) | ARN of the exchange Lambda role. |
 | <a name="output_domain"></a> [domain](#output\_domain) | Audience consumers must request for their OIDC token. |

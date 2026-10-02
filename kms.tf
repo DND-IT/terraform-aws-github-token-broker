@@ -20,6 +20,25 @@ resource "aws_kms_alias" "this" {
   target_key_id = aws_kms_external_key.this[var.active_key_version].id
 }
 
+resource "aws_kms_external_key" "additional" {
+  for_each = local.additional_key_versions
+
+  description             = "${var.name} GitHub App ${var.additional_github_apps[each.value.app].app_id} signing key (${each.value.version})"
+  key_spec                = "RSA_2048"
+  key_usage               = "SIGN_VERIFY"
+  deletion_window_in_days = var.key_deletion_window_in_days
+  policy                  = data.aws_iam_policy_document.key.json
+
+  tags = var.tags
+}
+
+resource "aws_kms_alias" "additional" {
+  for_each = var.additional_github_apps
+
+  name          = "alias/${var.name}-${each.key}"
+  target_key_id = aws_kms_external_key.additional["${each.key}/${each.value.active_key_version}"].id
+}
+
 data "aws_iam_policy_document" "key" {
   statement {
     sid       = "Sign"
