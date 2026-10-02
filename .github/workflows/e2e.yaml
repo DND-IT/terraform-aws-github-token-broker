@@ -115,8 +115,9 @@ jobs:
           curl -sS --fail -o /dev/null -H "Authorization: Bearer $token" \
             "https://api.github.com/repos/$GITHUB_REPOSITORY"
 
+          # Must stay a private repository: a public one answers 200 to any token.
           status=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" \
-            "https://api.github.com/repos/DND-IT/github-workflows")
+            "https://api.github.com/repos/DND-IT/.github-private")
           [[ $status == 404 ]] || { echo "::error::token reached another repository ($status)"; exit 1; }
 
       - name: Destroy
