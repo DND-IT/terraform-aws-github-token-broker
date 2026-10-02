@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: release
-        uses: DND-IT/tamci/actions/release@ed90491bdd4f77b7423fdbb151ad107ca4b4c6e2 # v0.2.2
+        uses: DND-IT/tamci/actions/release@e487203b3cbcba5cefed069d7132c1b92f963c8a # v0.2.10
         with:
           tag-prefix: v
 
