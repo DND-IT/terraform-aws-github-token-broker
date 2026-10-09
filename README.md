@@ -106,6 +106,8 @@ claim_pattern:
 
 permissions:
   metadata: read
+
+app: "5019123"
 ```
 
 Every condition must hold for the OIDC token the caller presents:
@@ -116,6 +118,7 @@ Every condition must hold for the OIDC token the caller presents:
 | `subject_pattern` | `sub` claim, regular expression | Only this repository, and only `pull_request` runs or runs on `main`. A push to any other branch, a tag or a GitHub environment produces a different `sub` and is refused |
 | `claim_pattern.workflow_ref` | any other claim, regular expression per claim | Only `e2e.yaml`. Another workflow in this repository has a matching `sub` but cannot use this identity |
 | audience (not set) | `aud` claim | With no `audience` or `audience_pattern`, octo-sts requires `aud` to equal the broker domain (`STS_DOMAIN`), which is why the workflow requests its OIDC token with the `domain` output as audience. The JWT authorizer enforces the same value first |
+| `app` | App that mints the token, by numeric App ID | Only the test App from step 1 (`BROKER_E2E_APP_ID`). A broker that signs for several Apps cannot mint this identity's token with another one, and a broker that does not sign for the test App refuses the exchange with `trust policy app "5019123" is not a configured app` |
 
 Patterns are anchored by octo-sts (`^(?:...)$`), so they match the whole claim; do not add `^` or `$`, and escape literal dots. `subject` and `issuer` have exact-match and `_pattern` forms; use exactly one of each.
 
