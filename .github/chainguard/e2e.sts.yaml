@@ -5,3 +5,5 @@ claim_pattern:
 
 permissions:
   metadata: read
+
+app: "5019123"
