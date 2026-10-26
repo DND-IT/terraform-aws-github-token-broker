@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: release
-        uses: DND-IT/tamci/actions/release@e487203b3cbcba5cefed069d7132c1b92f963c8a # v0.2.10
+        uses: DND-IT/tamci/actions/release@1159770ed4b5f46cbd125cec5ac5256299e99138 # v0.2.11
         with:
           tag-prefix: v
 
@@ -45,7 +45,7 @@ jobs:
           VERSION: ${{ needs.release.outputs.version }}
         run: echo "tag=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
